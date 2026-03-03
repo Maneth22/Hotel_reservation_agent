@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hotel Reservation Agent Prototype</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f5f7fb; color: #1f2937; }
+    .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .card { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 2px 10px rgba(0,0,0,0.07); }
+    h1, h2 { margin-top: 0; }
+    label { display: block; font-weight: 600; margin-top: 10px; }
+    input, textarea, button { width: 100%; box-sizing: border-box; margin-top: 6px; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; }
+    button { background: #2563eb; color: white; border: none; cursor: pointer; font-weight: 600; }
+    button:hover { background: #1d4ed8; }
+    pre { background: #111827; color: #e5e7eb; border-radius: 8px; padding: 12px; overflow: auto; min-height: 120px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .muted { color: #6b7280; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Hotel Reservation AI Agent (Prototype)</h1>
+    <p class="muted">Use this page to test <code>/chat</code>, <code>/availability</code>, <code>/reservation/draft</code>, and <code>/reservation/confirm</code>.</p>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Chat</h2>
+        <label>Session ID</label>
+        <input id="sessionId" value="demo-session" />
+        <label>Message</label>
+        <textarea id="chatMessage" rows="4" placeholder="I need rooms for 5 guests from 2026-06-02 to 2026-06-05"></textarea>
+        <button onclick="sendChat()">Send Chat</button>
+      </section>
+
+      <section class="card">
+        <h2>Availability</h2>
+        <div class="row">
+          <div>
+            <label>Check-in</label>
+            <input id="checkIn" type="date" value="2026-06-02" />
+          </div>
+          <div>
+            <label>Check-out</label>
+            <input id="checkOut" type="date" value="2026-06-05" />
+          </div>
+        </div>
+        <button onclick="loadAvailability()">Get Availability</button>
+      </section>
+
+      <section class="card">
+        <h2>Draft Patch</h2>
+        <label>Reservation Patch JSON</label>
+        <textarea id="draftJson" rows="8">{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "phone": "+12025550123"
+}</textarea>
+        <button onclick="updateDraft()">Update Draft</button>
+      </section>
+
+      <section class="card">
+        <h2>Confirm</h2>
+        <p class="muted">Confirms reservation for the current session when mandatory fields and constraints are satisfied.</p>
+        <button onclick="confirmReservation()">Confirm Reservation</button>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:16px;">
+      <h2>API Response</h2>
+      <pre id="output">Ready.</pre>
+    </section>
+  </div>
+
+  <script>
+    const output = document.getElementById('output');
+
+    async function handleResponse(res) {
+      const data = await res.json();
+      output.textContent = JSON.stringify({ status: res.status, body: data }, null, 2);
+    }
+
+    async function sendChat() {
+      const session_id = document.getElementById('sessionId').value;
+      const message = document.getElementById('chatMessage').value;
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id, message })
+      });
+      await handleResponse(res);
+    }
+
+    async function loadAvailability() {
+      const check_in = document.getElementById('checkIn').value;
+      const check_out = document.getElementById('checkOut').value;
+      const res = await fetch(`/availability?check_in=${check_in}&check_out=${check_out}`);
+      await handleResponse(res);
+    }
+
+    async function updateDraft() {
+      const session_id = document.getElementById('sessionId').value;
+      const reservation = JSON.parse(document.getElementById('draftJson').value);
+      const res = await fetch('/reservation/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id, reservation })
+      });
+      await handleResponse(res);
+    }
+
+    async function confirmReservation() {
+      const session_id = document.getElementById('sessionId').value;
+      const res = await fetch('/reservation/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id })
+      });
+      await handleResponse(res);
+    }
+  </script>
+</body>
+</html>
