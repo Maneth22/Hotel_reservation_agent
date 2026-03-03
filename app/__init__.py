@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flask import Flask, render_template
+from flask import Flask
 
 from app.clients.hotel_api_client import HotelAPIClient
 from app.clients.ollama_client import OllamaExtractionClient
@@ -21,10 +21,6 @@ def create_app() -> Flask:
 
     service = ReservationService(state_store, hotel_client, llm_client, allocator)
     app.register_blueprint(build_blueprint(service))
-
-    @app.get("/")
-    def index():
-        return render_template("index.html")
 
     @app.get("/health")
     def health():

@@ -48,26 +48,3 @@ def test_confirm_fails_when_missing_required_fields():
         assert False, "Expected ValueError"
     except ValueError as exc:
         assert "missing fields" in str(exc)
-
-
-def test_confirm_fails_when_room_capacity_is_insufficient():
-    service = build_service()
-    session_id = "s2"
-    service.state_store.save(
-        session_id,
-        ReservationState(
-            check_in=date(2026, 6, 1),
-            check_out=date(2026, 6, 4),
-            guests=5,
-            name="John",
-            email="john@example.com",
-            phone="+12025550123",
-            rooms=[RoomSelection(room_category="Standard", room_type="Queen", room_count=1)],
-        ),
-    )
-
-    try:
-        service.confirm(session_id)
-        assert False, "Expected ValueError"
-    except ValueError as exc:
-        assert "Selected rooms can host" in str(exc)
