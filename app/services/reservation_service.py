@@ -8,6 +8,8 @@ from app.models.reservation import (
     MANDATORY_FIELDS,
     AvailabilityResponse,
     ChatResponse,
+    ConfirmResponse,
+    ReservationReceipt,
     ReservationPatch,
     ReservationState,
     ReservationStatus,
@@ -44,6 +46,7 @@ class ReservationService:
         )
         merged = self.apply_patch(current, patch)
         self._validate_rooms_with_inventory(merged)
+        self._validate_guest_capacity_constraints(merged)
 
         suggestions = self._suggest_rooms(merged)
         missing = self._missing_fields(merged)
@@ -73,16 +76,42 @@ class ReservationService:
         current = self.state_store.get_or_create(session_id)
         merged = self.apply_patch(current, patch)
         self._validate_rooms_with_inventory(merged)
+        self._validate_guest_capacity_constraints(merged)
         return self.state_store.save(session_id, merged)
 
-    def confirm(self, session_id: str) -> ReservationState:
+    def confirm(self, session_id: str) -> ConfirmResponse:
         reservation = self.state_store.get_or_create(session_id)
         missing = self._missing_fields(reservation)
         if missing:
             raise ValueError(f"Cannot confirm, missing fields: {missing}")
         self._validate_rooms_with_inventory(reservation)
+        self._validate_guest_capacity_constraints(reservation)
         reservation.status = ReservationStatus.confirmed
-        return self.state_store.save(session_id, reservation)
+        saved = self.state_store.save(session_id, reservation)
+        receipt = self.generate_receipt(session_id)
+        return ConfirmResponse(reservation=saved, receipt=receipt)
+
+    def generate_receipt(self, session_id: str) -> ReservationReceipt:
+        reservation = self.state_store.get_or_create(session_id)
+        if reservation.status != ReservationStatus.confirmed:
+            raise ValueError("Reservation must be confirmed before generating receipt")
+        if not (reservation.check_in and reservation.check_out and reservation.guests):
+            raise ValueError("Missing reservation details for receipt generation")
+
+        currency, line_items, subtotal, taxes, total = self.hotel_client.get_rate_quote(reservation)
+        nights = (reservation.check_out - reservation.check_in).days
+        return ReservationReceipt(
+            session_id=session_id,
+            check_in=reservation.check_in,
+            check_out=reservation.check_out,
+            guests=reservation.guests,
+            nights=nights,
+            currency=currency,
+            line_items=line_items,
+            subtotal=subtotal,
+            taxes=taxes,
+            total=total,
+        )
 
     def _availability_options(self, state: ReservationState) -> list[dict]:
         if not state.check_in or not state.check_out or state.check_in >= state.check_out:
@@ -93,6 +122,29 @@ class ReservationService:
     def _validate_rooms_with_inventory(self, state: ReservationState) -> None:
         if state.rooms and state.check_in and state.check_out:
             self.hotel_client.validate_room_selection(state.check_in, state.check_out, state.rooms)
+
+
+    def _validate_guest_capacity_constraints(self, state: ReservationState) -> None:
+        if not state.rooms or not state.guests:
+            return
+        if not (state.check_in and state.check_out):
+            raise ValueError("check_in and check_out are required when rooms are selected")
+
+        availability = self.hotel_client.get_availability(state.check_in, state.check_out)
+        occupancy_map = {
+            (item.room_category, item.room_type): item.max_occupancy for item in availability.inventory
+        }
+        selected_capacity = 0
+        for room in state.rooms:
+            key = (room.room_category, room.room_type)
+            if key not in occupancy_map:
+                raise ValueError(f"Unknown room option: {room.room_category}/{room.room_type}")
+            selected_capacity += occupancy_map[key] * room.room_count
+
+        if selected_capacity < state.guests:
+            raise ValueError(
+                f"Selected rooms can host {selected_capacity} guests, but reservation requires {state.guests}"
+            )
 
     def _suggest_rooms(self, state: ReservationState):
         if not (state.guests and state.check_in and state.check_out):

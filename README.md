@@ -26,6 +26,7 @@ app/
     room_allocator.py         # Intelligent room combination engine
     state_store.py            # Conversation/session draft state store
 run.py                        # Entry point
+app/templates/index.html       # HTML frontend prototype for endpoint testing
 tests/
   test_reservation_service.py
   test_room_allocator.py
@@ -61,7 +62,7 @@ The draft/confirmed reservation schema follows:
 2. **Partial updates**: only fields provided with non-null values are applied.
 3. **Null-safe merge**: null from new LLM/user patch never overwrites valid existing data.
 4. **Schema enforcement**: strict Pydantic validation (`extra=forbid`).
-5. **Date and occupancy checks**: rejects invalid date ranges and impossible allocations.
+5. **Date and occupancy checks**: rejects invalid date ranges, under-capacity room selections, and impossible allocations.
 6. **Follow-up prompts**: missing mandatory fields are returned as `missing_fields`.
 
 ## Intelligent Room Allocation
@@ -109,13 +110,21 @@ Direct structured patch update.
 ```
 
 ### `POST /reservation/confirm`
-Confirms reservation only when required fields are present and room selection is valid.
+Confirms reservation only when required fields are present and room selection is valid, then returns both confirmed reservation and receipt.
 
 ```json
 {
   "session_id": "abc123"
 }
 ```
+
+
+### `GET /reservation/receipt?session_id=...`
+Returns a generated receipt for a confirmed reservation.
+
+Receipt generation occurs **after** all reservation details are captured and confirmation succeeds.
+Rates are calculated in a separate pricing step via the hotel API client (single source of truth).
+
 
 ## Ollama Structured Extraction Strategy
 
@@ -165,3 +174,9 @@ Run tests:
 ```bash
 pytest -q
 ```
+
+
+## Prototype Frontend
+
+A lightweight HTML test UI is served at `/ui` to manually exercise all API endpoints from a browser during integration testing.
+

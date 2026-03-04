@@ -46,8 +46,17 @@ def build_blueprint(service: ReservationService) -> Blueprint:
     def confirm():
         try:
             session_id = request.get_json(force=True)["session_id"]
-            reservation = service.confirm(session_id)
-            return jsonify(reservation.model_dump(mode="json"))
+            response = service.confirm(session_id)
+            return jsonify(response.model_dump(mode="json"))
+        except (KeyError, ValueError) as exc:
+            return jsonify({"error": str(exc)}), 400
+
+    @bp.get("/reservation/receipt")
+    def receipt():
+        try:
+            session_id = request.args["session_id"]
+            response = service.generate_receipt(session_id)
+            return jsonify(response.model_dump(mode="json"))
         except (KeyError, ValueError) as exc:
             return jsonify({"error": str(exc)}), 400
 

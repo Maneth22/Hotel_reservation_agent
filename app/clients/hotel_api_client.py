@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.models.reservation import AvailabilityResponse, RoomSelection
+from app.models.reservation import AvailabilityResponse, RateLineItem, ReservationState, RoomSelection
 
 
 class HotelAPIClient:
@@ -64,3 +64,45 @@ class HotelAPIClient:
                 raise ValueError(
                     f"Invalid meal_plan {room.meal_plan} for {room.room_category}/{room.room_type}; use one of {item.meal_plans}"
                 )
+
+    def get_rate_quote(self, reservation: ReservationState) -> tuple[str, list[RateLineItem], float, float, float]:
+        if not reservation.check_in or not reservation.check_out:
+            raise ValueError("Cannot calculate rates without check_in and check_out")
+        if not reservation.rooms:
+            raise ValueError("Cannot calculate rates without selected rooms")
+
+        nights = (reservation.check_out - reservation.check_in).days
+        if nights < 1:
+            raise ValueError("Cannot calculate rates for invalid date range")
+
+        rate_card = {
+            ("Standard", "Queen"): 100.0,
+            ("Deluxe", "King"): 165.0,
+            ("Family", "Suite"): 220.0,
+        }
+
+        line_items: list[RateLineItem] = []
+        subtotal = 0.0
+        for room in reservation.rooms:
+            key = (room.room_category, room.room_type)
+            nightly_rate = rate_card.get(key)
+            if nightly_rate is None:
+                raise ValueError(f"No rate configured for {room.room_category}/{room.room_type}")
+            total = nightly_rate * nights * room.room_count
+            subtotal += total
+            line_items.append(
+                RateLineItem(
+                    room_category=room.room_category,
+                    room_type=room.room_type,
+                    meal_plan=room.meal_plan,
+                    room_count=room.room_count,
+                    nightly_rate=nightly_rate,
+                    nights=nights,
+                    total=round(total, 2),
+                )
+            )
+
+        taxes = round(subtotal * 0.12, 2)
+        subtotal = round(subtotal, 2)
+        total = round(subtotal + taxes, 2)
+        return "USD", line_items, subtotal, taxes, total
