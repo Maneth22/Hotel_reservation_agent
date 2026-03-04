@@ -15,6 +15,7 @@ from app.models.reservation import (
     ReservationStatus,
 )
 from app.services.room_allocator import RoomAllocationEngine
+from app.agents_langchain import LangChainHotelAgent
 from app.services.state_store import InMemoryStateStore
 
 
@@ -25,11 +26,13 @@ class ReservationService:
         hotel_client: HotelAPIClient,
         llm_client: OllamaExtractionClient,
         allocator: RoomAllocationEngine,
+        chat_agent: LangChainHotelAgent | None = None,
     ) -> None:
         self.state_store = state_store
         self.hotel_client = hotel_client
         self.llm_client = llm_client
         self.allocator = allocator
+        self.chat_agent = chat_agent
 
     def get_availability(self, check_in: date, check_out: date) -> AvailabilityResponse:
         if check_in >= check_out:
@@ -60,6 +63,29 @@ class ReservationService:
             suggestions=suggestions,
             missing_fields=missing,
         )
+
+
+    def chat_with_agent(self, session_id: str, message: str) -> ChatResponse:
+        response = self.update_draft_from_chat(session_id, message)
+        inventory = []
+        if response.reservation.check_in and response.reservation.check_out:
+            availability = self.hotel_client.get_availability(
+                response.reservation.check_in, response.reservation.check_out
+            )
+            inventory = [item.model_dump(mode="json") for item in availability.inventory]
+
+        if self.chat_agent:
+            response.reply = self.chat_agent.generate_reply(
+                user_message=message,
+                reservation=response.reservation.model_dump(mode="json"),
+                suggestions=[
+                    [room.model_dump(mode="json") for room in combo]
+                    for combo in response.suggestions
+                ],
+                availability_inventory=inventory,
+                missing_fields=response.missing_fields,
+            )
+        return response
 
     def apply_patch(self, current: ReservationState, patch: ReservationPatch) -> ReservationState:
         data = current.model_dump()

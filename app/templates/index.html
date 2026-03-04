@@ -22,7 +22,7 @@
 <body>
   <div class="container">
     <h1>Hotel Reservation AI Agent (Prototype)</h1>
-    <p class="muted">Use this page to test <code>/chat</code>, <code>/availability</code>, <code>/reservation/draft</code>, and <code>/reservation/confirm</code>.</p>
+    <p class="muted">Use this chat interface to test <code>/chat/agent</code> (LangChain + Ollama), <code>/chat</code>, <code>/availability</code>, <code>/reservation/draft</code>, and <code>/reservation/confirm</code>.</p>
 
     <div class="grid">
       <section class="card">
@@ -31,7 +31,10 @@
         <input id="sessionId" value="demo-session" />
         <label>Message</label>
         <textarea id="chatMessage" rows="4" placeholder="I need rooms for 5 guests from 2026-06-02 to 2026-06-05"></textarea>
-        <button onclick="sendChat()">Send Chat</button>
+        <div class="row" style="margin-top:10px;">
+          <button onclick="sendAgentChat()">Send Agent Chat</button>
+          <button onclick="sendChat()" style="background:#1f2937;">Send Basic Chat</button>
+        </div>
       </section>
 
       <section class="card">
@@ -80,6 +83,17 @@
     async function handleResponse(res) {
       const data = await res.json();
       output.textContent = JSON.stringify({ status: res.status, body: data }, null, 2);
+    }
+
+    async function sendAgentChat() {
+      const session_id = document.getElementById('sessionId').value;
+      const message = document.getElementById('chatMessage').value;
+      const res = await fetch('/chat/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id, message })
+      });
+      await handleResponse(res);
     }
 
     async function sendChat() {

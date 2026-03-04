@@ -3,6 +3,7 @@
 This project implements a deterministic hotel reservation AI backend that:
 
 - Uses **Ollama Cloud LLMs** for structured extraction.
+- Uses a **LangChain tool-calling agent** for final conversational replies and room-fit analysis.
 - Uses **Flask** for API endpoints.
 - Uses **Pydantic** for strict schema validation.
 - Integrates with a **hotel management API client** as the only source of inventory truth.
@@ -15,7 +16,8 @@ This project implements a deterministic hotel reservation AI backend that:
 app/
   __init__.py                 # Flask app factory + dependency wiring
   config.py                   # Environment config
-  routes.py                   # /chat, /availability, /reservation/draft, /reservation/confirm
+  routes.py                   # /chat, /chat/agent, /availability, /reservation/draft, /reservation/confirm
+  agents_langchain.py         # LangChain + Ollama tool-calling chat agent
   models/
     reservation.py            # Pydantic request/response/domain schemas
   clients/
@@ -83,6 +85,13 @@ If no feasible solution exists, response clearly states impossibility and sugges
 
 ### `POST /chat`
 Natural-language update + structured extraction + state update + suggestions.
+
+### `POST /chat/agent`
+Runs the same deterministic update flow, then uses the LangChain Ollama agent to provide an analyzed final reply that:
+- summarizes existing inventory options,
+- explains room-type/room-count fit against guest count,
+- reflects captured user details (name/email/phone), and
+- requests missing mandatory fields before confirmation.
 
 Request:
 
