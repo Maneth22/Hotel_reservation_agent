@@ -21,6 +21,16 @@ def build_blueprint(service: ReservationService) -> Blueprint:
         except (ValidationError, ValueError) as exc:
             return jsonify({"error": str(exc)}), 400
 
+
+    @bp.post("/chat/agent")
+    def chat_agent():
+        try:
+            payload = ChatRequest.model_validate(request.get_json(force=True))
+            response = service.chat_with_agent(payload.session_id, payload.message)
+            return jsonify(response.model_dump(mode="json"))
+        except (ValidationError, ValueError) as exc:
+            return jsonify({"error": str(exc)}), 400
+
     @bp.get("/availability")
     def availability():
         try:
